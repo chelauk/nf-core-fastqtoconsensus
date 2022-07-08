@@ -21,7 +21,7 @@ process FASTQC {
     script:
     def args = task.ext.args ?: ''
     // Add soft-links to original FastQs for consistent naming in pipeline
-    def prefix = task.ext.prefix ?: "${meta.patient}_${meta.sample}_${meta.lane}"
+    def prefix = task.ext.prefix ?: "${meta.id}"
     """
     [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz
     [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz
@@ -36,7 +36,7 @@ process FASTQC {
     stub:
     def args = task.ext.args ?: ''
     // Add soft-links for consistent naming
-    def prefix = task.ext.prefix ?: "${meta.patient}_${meta.sample}_${meta.lane}"
+    def prefix = task.ext.prefix ?: "${meta.id}"
     """
     [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz
     [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz

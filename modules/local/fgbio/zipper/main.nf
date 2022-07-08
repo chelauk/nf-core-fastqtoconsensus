@@ -1,6 +1,6 @@
 process FGBIO_ZIPPER {
     tag "$meta.id"
-    label 'process_low'
+    label 'process_high'
 
     container 'zipper.sif'
 

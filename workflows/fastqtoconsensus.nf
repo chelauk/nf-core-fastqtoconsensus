@@ -96,6 +96,7 @@ workflow FASTQTOCONSENSUS {
     //
     // MODULE: Run FastQC
     //
+    ch_input_sample.view()
     FASTQC (
         ch_input_sample
     )
