@@ -41,12 +41,14 @@ fasta_fai   = params.fasta_fai ? Channel.fromPath(params.fasta_fai).collect() : 
     FGBIO parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-
-strategy         = params.group_reads_strategy ?: Channel.empty()
-edits            = params.group_reads_edits    ?: Channel.empty()
-min_reads        = params.filter_min_reads     ?: Channel.empty()
-min_base_quality = params.min_base_quality     ?: Channel.empty()
-max_error_rate   = params.max_error_rate       ?: Channel.empty()
+read_structure       = params.read_structure                ?: Channel.empty()
+gr_strategy          = params.group_reads_strategy          ?: Channel.empty()
+gr_edits             = params.group_reads_edits             ?: Channel.empty()
+con_min_reads        = params.consensus_min_reads           ?: Channel.empty()
+con_min_base_quality = params.consensus_min_base_quality    ?: Channel.empty()
+fl_min_reads         = params.filter_min_reads              ?: Channel.empty()
+fl_max_error_rate    = params.filter_max_error_rate         ?: Channel.empty()
+fl_min_base_quality  = params.filter_reads_min_base_quality ?: Channel.empty()
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -107,7 +109,7 @@ workflow FASTQTOCONSENSUS {
     //
 
     FGBIO_FASTQTOBAM (
-        ch_input_sample,params.read_structure
+        ch_input_sample,read_structure
     )
     ch_versions = ch_versions.mix(FGBIO_FASTQTOBAM.out.versions.first())
 
@@ -124,28 +126,32 @@ workflow FASTQTOCONSENSUS {
 
 
     PICARD_MERGESAMFILES(group_umi_bam)
+    ch_versions = ch_versions.mix(PICARD_MERGESAMFILES.out.versions.first())
 
     //
-    // MODULE: samtools bwa fgbio fastq to bam
+    // MODULE: fgbio modules
     //
 
     FGBIO_ZIPPER (
         PICARD_MERGESAMFILES.out.bam,fasta,fasta_fai
     )
+    ch_versions = ch_versions.mix(FGBIO_ZIPPER.out.versions.first())
 
     FGBIO_GROUPREADSBYUMI (
-        FGBIO_ZIPPER.out.zipperbam,strategy,edits
+        FGBIO_ZIPPER.out.zipperbam,gr_strategy,gr_edits
     )
-
+    ch_versions = ch_versions.mix(FGBIO_GROUPREADSBYUMI.out.versions.first())
 
     FGBIO_CALLMOLECULARCONSENSUSREADS (
-        FGBIO_GROUPREADSBYUMI.out.groupbam
+        FGBIO_GROUPREADSBYUMI.out.groupbam,con_min_reads,con_min_base_quality
     )
+    ch_versions = ch_versions.mix(FGBIO_CALLMOLECULARCONSENSUSREADS.out.versions.first())
 
     FGBIO_FILTERCONSENSUSREADS (
-        FGBIO_CALLMOLECULARCONSENSUSREADS.out.consensusbam,min_reads,min_base_quality,max_error_rate
+        FGBIO_CALLMOLECULARCONSENSUSREADS.out.consensusbam,fl_min_reads,fl_min_base_quality,fl_max_error_rate
     )
-'''
+    ch_versions = ch_versions.mix(FGBIO_FILTERCONSENSUSREADS.out.versions.first())
+
     CUSTOM_DUMPSOFTWAREVERSIONS (
         ch_versions.unique().collectFile(name: 'collated_versions.yml')
     )
@@ -162,13 +168,13 @@ workflow FASTQTOCONSENSUS {
     ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
     ch_multiqc_files = ch_multiqc_files.mix(CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect())
     ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]}.ifEmpty([]))
-
+    ch_multiqc_files = ch_multiqc_files.mix(FGBIO_GROUPREADSBYUMI.out.histogram.collect{it[1]}.ifEmpty([]))
     MULTIQC (
         ch_multiqc_files.collect()
     )
     multiqc_report = MULTIQC.out.report.toList()
     ch_versions    = ch_versions.mix(MULTIQC.out.versions)
-'''
+
 }
 
 /*

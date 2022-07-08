@@ -9,6 +9,8 @@ process FGBIO_CALLMOLECULARCONSENSUSREADS {
 
     input:
     tuple val(meta), path(bam)
+    val(min_reads)
+    val(min_base_qual)
 
     output:
     tuple val(meta), path("*.consensus.bam"), emit: consensusbam
@@ -23,9 +25,11 @@ process FGBIO_CALLMOLECULARCONSENSUSREADS {
     """
     fgbio \\
         CallMolecularConsensusReads \\
-        -i $bam \\
+        --input $bam \\
         $args \\
-        -o ${prefix}.consensus.bam
+        --min-reads $min_reads \\
+        --min-input-base-quality $min_base_qual \\
+        --output ${prefix}.consensus.bam
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -38,10 +42,12 @@ process FGBIO_CALLMOLECULARCONSENSUSREADS {
     """
     echo "fgbio \\
         CallMolecularConsensusReads \\
-        -i $bam \\
+        --input $bam \\
         $args \\
-        -o ${prefix}.consensus.bam"
-    
+        --min-reads $min_reads \\
+        --min-input-base-quality $min_base_qual \\
+        --output ${prefix}.consensus.bam"
+
     touch  ${prefix}.consensus.bam 
 
     cat <<-END_VERSIONS > versions.yml

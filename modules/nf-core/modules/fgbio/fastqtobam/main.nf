@@ -28,8 +28,8 @@ process FGBIO_FASTQTOBAM {
         --tmp-dir=${PWD}/tmp \\
         --compression 1 --async-io \\
         FastqToBam \\
-        -i $reads \\
-        -o "${prefix}_umi_converted.bam" \\
+        --input $reads \\
+        --output "${prefix}_umi_converted.bam" \\
         --read-structures $read_structure \\
         --sample $meta.id \\
         --library $meta.id \\
@@ -44,17 +44,19 @@ process FGBIO_FASTQTOBAM {
     def args = task.ext.args ?: ''
     def prefix =  task.ext.prefix ?: "${meta.id}"
     """
-    echo -e "    fgbio \\n
-        --tmp-dir=${PWD}/tmp \\n
-        --compression 1 --async-io \\n
-        FastqToBam \\n
-        -i $reads \\n
-        -o "${prefix}_umi_converted.bam" \\n
-        --read-structures $read_structure \\n
-        --sample $meta.id \\n
-        --library $meta.id \\n
-        $args \n"
+    echo "fgbio \\
+        --tmp-dir=${PWD}/tmp \\
+        --compression 1 --async-io \\
+        FastqToBam \\
+        -i $reads \\
+        -o "${prefix}_umi_converted.bam" \\
+        --read-structures $read_structure \\
+        --sample $meta.id \\
+        --library $meta.id \\
+        $args "
+
     touch ${prefix}_umi_converted.bam
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         fgbio: 2.0.1 

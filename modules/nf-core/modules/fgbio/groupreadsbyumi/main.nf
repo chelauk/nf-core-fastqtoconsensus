@@ -30,11 +30,12 @@ process FGBIO_GROUPREADSBYUMI {
     fgbio \\
         --tmp-dir=${PWD}/tmp \\
         GroupReadsByUmi \\
-        -s $strategy \\
+        --strategy $strategy \\
         $args \\
-        -i $taggedbam \\
-        -o ${prefix}_umi-grouped.bam \\
-        -f ${prefix}_umi_histogram.txt
+        --input $taggedbam \\
+        --edits $edits \\
+        --output ${prefix}_umi-grouped.bam \\
+        --family-size-histogram ${prefix}_umi_histogram.txt
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -51,18 +52,19 @@ process FGBIO_GROUPREADSBYUMI {
     echo -e "fgbio \\
         --tmp-dir=${PWD}/tmp \\
         GroupReadsByUmi \\
-        -s $strategy \\
+        --strategy $strategy \\
         $args \\
         --edits $edits \\
-        -i $taggedbam \\
-        -o ${prefix}_umi-grouped.bam \\
-        -f ${prefix}_umi_histogram.txt"
+        --input $taggedbam \\
+        --output ${prefix}_umi-grouped.bam \\
+        --family-size-histogram ${prefix}_umi_histogram.txt"
 
     touch ${prefix}_umi-grouped.bam  
-    touch ${prefix}_umi_histogram.txt 
+    touch ${prefix}_umi_histogram.txt
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        fgbio: \$( echo \$(fgbio --version 2>&1 | tr -d '[:cntrl:]' ) | sed -e 's/^.*Version: //;s/\\[.*\$//')
+        fgbio: 2.0.1
     END_VERSIONS
     """
 }
