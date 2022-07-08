@@ -9,8 +9,23 @@
             "fastqc": {
                 "git_sha": "e745e167c1020928ef20ea1397b6b4d230681b4d"
             },
+            "fgbio/callmolecularconsensusreads": {
+                "git_sha": "e745e167c1020928ef20ea1397b6b4d230681b4d"
+            },
+            "fgbio/fastqtobam": {
+                "git_sha": "e745e167c1020928ef20ea1397b6b4d230681b4d"
+            },
+            "fgbio/groupreadsbyumi": {
+                "git_sha": "e745e167c1020928ef20ea1397b6b4d230681b4d"
+            },
             "multiqc": {
                 "git_sha": "e745e167c1020928ef20ea1397b6b4d230681b4d"
+            },
+            "picard/mergesamfiles": {
+                "git_sha": "682f789f93070bd047868300dd018faf3d434e7c"
+            },
+            "samtools/fastq": {
+                "git_sha": "897c33d5da084b61109500ee44c01da2d3e4e773"
             }
         }
     }

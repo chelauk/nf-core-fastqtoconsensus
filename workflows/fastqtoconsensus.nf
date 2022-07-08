@@ -17,6 +17,8 @@ for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true
 // Check mandatory parameters
 if (params.input) { ch_input = file(params.input) } else { exit 1, 'Input samplesheet not specified!' }
 
+// Create input channel
+ch_input_sample = extract_csv(file(params.input, checkIfExists: true), params.test_run)
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     CONFIG FILES
@@ -28,6 +30,26 @@ ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multi
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    REFERENCES AND INDICES
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+fasta       = params.fasta     ? Channel.fromPath(params.fasta).collect()     : Channel.empty()
+fasta_fai   = params.fasta_fai ? Channel.fromPath(params.fasta_fai).collect() : Channel.empty()
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    FGBIO parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+strategy         = params.group_reads_strategy ?: Channel.empty()
+edits            = params.group_reads_edits    ?: Channel.empty()
+min_reads        = params.filter_min_reads     ?: Channel.empty()
+min_base_quality = params.min_base_quality     ?: Channel.empty()
+max_error_rate   = params.max_error_rate       ?: Channel.empty()
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     IMPORT LOCAL MODULES/SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
@@ -35,20 +57,28 @@ ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multi
 //
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 //
-include { INPUT_CHECK } from '../subworkflows/local/input_check'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     IMPORT NF-CORE MODULES/SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-
+//
+// SUBWORKFLOW: installed from subworkflows
+//
 //
 // MODULE: Installed directly from nf-core/modules
 //
-include { FASTQC                      } from '../modules/nf-core/modules/fastqc/main'
-include { MULTIQC                     } from '../modules/nf-core/modules/multiqc/main'
-include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/modules/custom/dumpsoftwareversions/main'
+include { FASTQC                            } from '../modules/nf-core/modules/fastqc/main'
+include { FGBIO_FASTQTOBAM                  } from '../modules/nf-core/modules/fgbio/fastqtobam/main'
+include { PICARD_MERGESAMFILES              } from '../modules/nf-core/modules/picard/mergesamfiles/main'
+include { FGBIO_ZIPPER                      } from '../modules/local/fgbio/zipper/main'
+include { FGBIO_GROUPREADSBYUMI             } from '../modules/nf-core/modules/fgbio/groupreadsbyumi/main'
+include { FGBIO_CALLMOLECULARCONSENSUSREADS } from '../modules/nf-core/modules/fgbio/callmolecularconsensusreads/main'
+include { FGBIO_FILTERCONSENSUSREADS        } from '../modules/nf-core/modules/fgbio/filterconsensusreads/main'
+include { SAMTOOLS_FASTQ                    } from '../modules/nf-core/modules/samtools/fastq/main'
+include { MULTIQC                           } from '../modules/nf-core/modules/multiqc/main'
+include { CUSTOM_DUMPSOFTWAREVERSIONS       } from '../modules/nf-core/modules/custom/dumpsoftwareversions/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -64,21 +94,57 @@ workflow FASTQTOCONSENSUS {
     ch_versions = Channel.empty()
 
     //
-    // SUBWORKFLOW: Read in samplesheet, validate and stage input files
-    //
-    INPUT_CHECK (
-        ch_input
-    )
-    ch_versions = ch_versions.mix(INPUT_CHECK.out.versions)
-
-    //
     // MODULE: Run FastQC
     //
     FASTQC (
-        INPUT_CHECK.out.reads
+        ch_input_sample
     )
     ch_versions = ch_versions.mix(FASTQC.out.versions.first())
 
+    //
+    // MODULE: Run FGBIO fastqtobam
+    //
+
+    FGBIO_FASTQTOBAM (
+        ch_input_sample,params.read_structure
+    )
+    ch_versions = ch_versions.mix(FGBIO_FASTQTOBAM.out.versions.first())
+
+    //
+    // SUBWORKFLOW: merge runs if necessary
+    //
+
+    FGBIO_FASTQTOBAM.out.umibam
+        .map{ meta, bam ->
+            new_meta = [patient:meta.patient, sample:meta.sample, gender:meta.gender, status:meta.status, id:meta.sample, numLanes:meta.numLanes, data_type:meta.data_type,size:meta.size]
+            [new_meta, bam]
+        }.groupTuple()
+        .set{group_umi_bam}
+
+
+    PICARD_MERGESAMFILES(group_umi_bam)
+
+    //
+    // MODULE: samtools bwa fgbio fastq to bam
+    //
+
+    FGBIO_ZIPPER (
+        PICARD_MERGESAMFILES.out.bam,fasta,fasta_fai
+    )
+
+    FGBIO_GROUPREADSBYUMI (
+        FGBIO_ZIPPER.out.zipperbam,strategy,edits
+    )
+
+
+    FGBIO_CALLMOLECULARCONSENSUSREADS (
+        FGBIO_GROUPREADSBYUMI.out.groupbam
+    )
+
+    FGBIO_FILTERCONSENSUSREADS (
+        FGBIO_CALLMOLECULARCONSENSUSREADS.out.consensusbam,min_reads,min_base_quality,max_error_rate
+    )
+'''
     CUSTOM_DUMPSOFTWAREVERSIONS (
         ch_versions.unique().collectFile(name: 'collated_versions.yml')
     )
@@ -101,19 +167,135 @@ workflow FASTQTOCONSENSUS {
     )
     multiqc_report = MULTIQC.out.report.toList()
     ch_versions    = ch_versions.mix(MULTIQC.out.versions)
+'''
 }
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    COMPLETION EMAIL AND SUMMARY
+    FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+// Function to extract information (meta data + file(s)) from csv file(s)
+def extract_csv(csv_file, test_run) {
 
-workflow.onComplete {
-    if (params.email || params.email_on_fail) {
-        NfcoreTemplate.email(workflow, params, summary_params, projectDir, log, multiqc_report)
+    // check that the sample sheet is not 1 line or less, because it'll skip all subsequent checks if so.
+    new File(csv_file.toString()).withReader('UTF-8') { reader ->
+        def line, numberOfLinesInSampleSheet = 0;
+            while ((line = reader.readLine()) != null) {
+            numberOfLinesInSampleSheet++
+        }
+        if( numberOfLinesInSampleSheet < 2){
+            log.error "Sample sheet had less than two lines. The sample sheet must be a csv file with a header, so at least two lines."
+            System.exit(1)
+        }
     }
-    NfcoreTemplate.summary(workflow, params, log)
+
+
+
+    Channel.from(csv_file).splitCsv(header: true)
+        //Retrieves number of lanes by grouping together by patient and sample and counting how many entries there are for this combination
+        .map{ row ->
+            if (!(row.patient && row.sample)){
+                log.error "Missing field in csv file header. The csv file must have fields named 'patient' and 'sample'."
+                System.exit(1)
+            }
+            [[row.patient.toString(), row.sample.toString()], row]
+        }.groupTuple()
+        .map{ meta, rows ->
+            size = rows.size()
+            [rows, size]
+        }.transpose()
+        .map{ row, numLanes -> //from here do the usual thing for csv parsing
+        def meta = [:]
+        def fastq_meta = []
+        // Meta data to identify samplesheet
+        // Both patient and sample are mandatory
+        // Several sample can belong to the same patient
+        // Sample should be unique for the patient
+        if (row.patient) meta.patient = row.patient.toString()
+        if (row.sample)  meta.sample  = row.sample.toString()
+
+        // If no gender specified, gender is not considered
+        // gender is only mandatory for somatic CNV
+        if (row.gender) meta.gender = row.gender.toString()
+        else meta.gender = "NA"
+
+        // If no status specified, sample is assumed normal
+        if (row.status) meta.status = row.status.toInteger()
+        else meta.status = 0
+
+        // mapping with fastq
+        if (row.lane && row.fastq_2) {
+            meta.id         = "${row.sample}-${row.lane}".toString()
+            def fastq_1     = file(row.fastq_1, checkIfExists: true)
+            fastq_meta.add(fastq_1)
+            def fastq_2     = file(row.fastq_2, checkIfExists: true)
+            fastq_meta.add(fastq_2)
+            if(row.fastq_3) {
+                def fastq_3  = file(row.fastq_3, checkIfExists: true)
+                fastq_meta.add(fastq_3)
+            }
+            def CN          = params.seq_center ? "CN:${params.seq_center}\\t" : ''
+
+            def flowcell = flowcellLaneFromFastq(fastq_1,test_run)
+
+            //Don't use a random element for ID, it breaks resuming
+            def read_group  = "\"@RG\\tID:${flowcell}.${row.sample}.${row.lane}\\t${CN}PU:${row.lane}\\tSM:${row.patient}_${row.sample}\\tLB:${row.sample}\\tDS:${params.fasta}\\tPL:${params.seq_platform}\""
+
+            meta.numLanes   = numLanes.toInteger()
+            meta.read_group = read_group.toString()
+            meta.data_type  = "fastq"
+
+            meta.size       = 1 // default number of splitted fastq
+            return [meta, fastq_meta]
+        // start from BAM
+        } else if (row.lane && row.bam) {
+            meta.id         = "${row.sample}-${row.lane}".toString()
+            def bam         = file(row.bam,   checkIfExists: true)
+            def CN          = params.seq_center ? "CN:${params.seq_center}\\t" : ''
+            def read_group  = "\"@RG\\tID:${row_sample}_${row.lane}\\t${CN}PU:${row.lane}\\tSM:${row.sample}\\tLB:${row.sample}\\tPL:${params.seq_platform}\""
+            meta.numLanes   = numLanes.toInteger()
+            meta.read_group = read_group.toString()
+            meta.data_type  = "bam"
+            meta.size       = 1 // default number of splitted fastq
+            return [meta, bam]
+        } else {
+            log.warn "Missing or unknown field in csv file header"
+        }
+    }
+}
+
+// Parse first line of a FASTQ file, return the flowcell id and lane number.
+def flowcellLaneFromFastq(path,test_run) {
+    // expected format:
+    // xx:yy:FLOWCELLID:LANE:... (seven fields)
+    // or
+    // FLOWCELLID:LANE:xx:... (five fields)
+    if(!test_run){
+        def line
+        path.withInputStream {
+            InputStream gzipStream = new java.util.zip.GZIPInputStream(it)
+            Reader decoder = new InputStreamReader(gzipStream, 'ASCII')
+            BufferedReader buffered = new BufferedReader(decoder)
+            line = buffered.readLine()
+        }
+        assert line.startsWith('@')
+        line = line.substring(1)
+        def fields = line.split(':')
+        String fcid
+
+        if (fields.size() >= 7) {
+            // CASAVA 1.8+ format, from  https://support.illumina.com/help/BaseSpace_OLH_009008/Content/Source/Informatics/BS/FileFormat_FASTQ-files_swBS.htm
+            // "@<instrument>:<run number>:<flowcell ID>:<lane>:<tile>:<x-pos>:<y-pos>:<UMI> <read>:<is filtered>:<control number>:<index>"
+            fcid = fields[2]
+        } else if (fields.size() == 5) {
+            fcid = fields[0]
+        }
+        return fcid
+    } else {
+        fcid = "test"
+        return fcid
+    }
 }
 
 /*
