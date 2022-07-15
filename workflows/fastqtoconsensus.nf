@@ -11,7 +11,12 @@ WorkflowFastqtoconsensus.initialise(params, log)
 
 // TODO nf-core: Add all file path parameters for the pipeline to the list below
 // Check input path parameters to see if they exist
-def checkPathParamList = [ params.input, params.multiqc_config, params.fasta ]
+def checkPathParamList = [ params.input, 
+                           params.multiqc_config, 
+						   params.fasta, 
+						   params.fasta_fai, 
+						   params.dict,
+						   params.bwa]
 for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
 
 // Check mandatory parameters
@@ -35,6 +40,8 @@ ch_multiqc_custom_config = params.multiqc_config ? Channel.fromPath(params.multi
 */
 fasta       = params.fasta     ? Channel.fromPath(params.fasta).collect()     : Channel.empty()
 fasta_fai   = params.fasta_fai ? Channel.fromPath(params.fasta_fai).collect() : Channel.empty()
+dict        = params.dict      ? Channel.fromPath(params.dict).collect()      : Chaneel.empty()
+bwa         = params.bwa       ? Channel.fromPath(params.bwa).collect()       : Channel.empty()
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -98,7 +105,7 @@ workflow FASTQTOCONSENSUS {
     //
     // MODULE: Run FastQC
     //
-    ch_input_sample.view()
+
     FASTQC (
         ch_input_sample
     )
@@ -131,9 +138,10 @@ workflow FASTQTOCONSENSUS {
     //
     // MODULE: fgbio modules
     //
-
-    FGBIO_ZIPPER (
-        PICARD_MERGESAMFILES.out.bam,fasta,fasta_fai
+    fasta.view()
+	fasta_fai.view()
+	FGBIO_ZIPPER (
+        PICARD_MERGESAMFILES.out.bam,bwa,fasta,fasta_fai,dict
     )
     ch_versions = ch_versions.mix(FGBIO_ZIPPER.out.versions.first())
 
