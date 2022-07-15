@@ -47,10 +47,10 @@ process FGBIO_GROUPREADSBYUMI {
     def prefix = task.ext.prefix ?: "${meta.id}"
 
     """
-    mkdir tmp
+    [ ! -d "./tmp" ] && mkdir tmp
 
     echo -e "fgbio \\
-        --tmp-dir=${PWD}/tmp \\
+        --tmp-dir=./tmp \\
         GroupReadsByUmi \\
         --strategy $strategy \\
         $args \\
