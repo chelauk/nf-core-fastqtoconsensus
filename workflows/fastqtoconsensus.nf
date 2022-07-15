@@ -138,13 +138,12 @@ workflow FASTQTOCONSENSUS {
     //
     // MODULE: fgbio modules
     //
-    fasta.view()
-	fasta_fai.view()
+	
 	FGBIO_ZIPPER (
         PICARD_MERGESAMFILES.out.bam,bwa,fasta,fasta_fai,dict
     )
     ch_versions = ch_versions.mix(FGBIO_ZIPPER.out.versions.first())
-
+    FGBIO_ZIPPER.out.zipperbam.view()
     FGBIO_GROUPREADSBYUMI (
         FGBIO_ZIPPER.out.zipperbam,gr_strategy,gr_edits
     )
