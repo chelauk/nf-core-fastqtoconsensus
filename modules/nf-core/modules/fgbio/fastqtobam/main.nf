@@ -24,7 +24,7 @@ process FGBIO_FASTQTOBAM {
     """
     mkdir tmp
 
-    fgbio \\
+        fgbio \\
         --tmp-dir=${PWD}/tmp \\
         --compression 1 --async-io \\
         FastqToBam \\

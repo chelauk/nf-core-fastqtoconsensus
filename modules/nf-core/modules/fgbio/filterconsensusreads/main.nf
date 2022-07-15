@@ -2,14 +2,14 @@ process FGBIO_FILTERCONSENSUSREADS {
     tag "$meta.id"
     label 'process_medium'
 
-    conda (params.enable_conda ? "bioconda::fgbio:2.0.2--hdfd78af_0" : null)
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/fgbio:2.0.2--hdfd78af_0' :
-        'quay.io/biocontainers/fgbio:2.0.2--hdfd78af_0' }"
-
+    container 'zipper.sif'
+    
     input:
     tuple val(meta), path(bam)
-    val (min_reads)
+    path fasta
+	path fasta_fai
+	path fasta_dict
+	val (min_reads)
     val (min_base_quality)
     val (max_error_rate)
 
@@ -30,13 +30,15 @@ process FGBIO_FILTERCONSENSUSREADS {
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-        fgbio -Xmx${avail_mem}g --compression 0 FilterConsensusReads \\
+    fgbio -Xmx${avail_mem}g --compression 0 \\
+        FilterConsensusReads \\
         --input $bam \\
+        --ref $fasta \\
         --output /dev/stdout \\
         --min-reads $min_reads \\
         --min-base-quality $min_base_quality \\
         --max-base-error-rate $max_error_rate \\
-        | samtools sort --threads $task.cpus -o ${meta.id}.cons.filtered.bam --write-index
+       | samtools sort --threads $task.cpus -o ${meta.id}.cons.filtered.bam --write-index \\
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

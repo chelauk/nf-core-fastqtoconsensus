@@ -28,12 +28,12 @@ process FGBIO_ZIPPER {
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-	INDEX=\$(find -L ./ -name "*.amb" | sed 's/.amb//')
-	samtools sort --no-PG -n $bam -o sorted.bam
+    INDEX=\$(find -L ./ -name "*.amb" | sed 's/.amb//')
+    samtools sort --no-PG -n $bam -o sorted.bam
     samtools fastq $bam \\
     | bwa mem -t $task.cpus -p -Y -K 150000000 \$INDEX - \\
     | samtools sort --no-PG -n \\
-	| fgbio -Xmx${avail_mem}g --compression 1 ZipperBams \\
+    | fgbio -Xmx${avail_mem}g --compression 1 ZipperBams \\
     --unmapped sorted.bam \\
     --ref $fasta \\
     --output ${prefix}.mapped.bam \\

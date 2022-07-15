@@ -155,7 +155,7 @@ workflow FASTQTOCONSENSUS {
     ch_versions = ch_versions.mix(FGBIO_CALLMOLECULARCONSENSUSREADS.out.versions.first())
 
     FGBIO_FILTERCONSENSUSREADS (
-        FGBIO_CALLMOLECULARCONSENSUSREADS.out.consensusbam,fl_min_reads,fl_min_base_quality,fl_max_error_rate
+        FGBIO_CALLMOLECULARCONSENSUSREADS.out.consensusbam,fasta,fasta_fai,dict,fl_min_reads,fl_min_base_quality,fl_max_error_rate
     )
     ch_versions = ch_versions.mix(FGBIO_FILTERCONSENSUSREADS.out.versions.first())
 
