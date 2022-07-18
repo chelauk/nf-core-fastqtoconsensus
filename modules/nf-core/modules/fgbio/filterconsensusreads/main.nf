@@ -38,7 +38,7 @@ process FGBIO_FILTERCONSENSUSREADS {
         --min-reads $min_reads \\
         --min-base-quality $min_base_quality \\
         --max-base-error-rate $max_error_rate \\
-       | samtools sort --threads $task.cpus -o ${meta.id}.cons.filtered.bam --write-index \\
+        | samtools sort --threads $task.cpus -o ${meta.id}.cons.filtered.bam --write-index \\
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
