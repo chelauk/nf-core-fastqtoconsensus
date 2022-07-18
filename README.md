@@ -33,7 +33,11 @@ On release, automated continuous integration tests run the pipeline on a full-si
 
 1. Read QC ([`FastQC`](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/))
 2. Present QC for raw reads ([`MultiQC`](http://multiqc.info/))
-
+3. Create an tagged unaligned bam ([`fgbio FastqToBam`](http://fulcrumgenomics.github.io/fgbio/))
+4. Align fastq and merge with tagged bam ([`fgbio Zipperbams`](http://fulcrumgenomics.github.io/fgbio/) ; [`samtools fastq`](http://www.htslib.org/) ; [`bwa mem`](https://github.com/lh3/bwa))
+5. Group reads by umi ([`fgbio GroupReadsByUmi`](http://fulcrumgenomics.github.io/fgbio/))
+6. Call consensus ([`fgbio CallMollecularConsensus`](http://fulcrumgenomics.github.io/fgbio/))
+7. Filter consensus ([`fgbio FilterConsensusReads`](http://fulcrumgenomics.github.io/fgbio/))
 ## Quick Start
 
 1. Install [`Nextflow`](https://www.nextflow.io/docs/latest/getstarted.html#installation) (`>=21.10.3`)
