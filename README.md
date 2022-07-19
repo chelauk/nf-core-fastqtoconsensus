@@ -46,7 +46,7 @@ On release, automated continuous integration tests run the pipeline on a full-si
 
 3. Clone the pipeline
 
-3. Clone the pipeline:
+3. Clone the pipeline in your scratch folder
 
     ```console
     git clone https://github.com/chelauk/nf-core-demultiplex-methylation.git
@@ -76,7 +76,7 @@ On release, automated continuous integration tests run the pipeline on a full-si
     #SBATCH --ntasks=1
     #SBATCH --time=120:00:00
 
-    nextflow run <b>/location/of/your/nextflow_pipelines/nf-core-demultiplex-methylation</b> \
+    nextflow run <b>/location/of/your/nextflow_pipelines/nf-core-fastqtoconsensus</b> \
     --input input.csv \
     -profile slurm,singularity \
     -c local.config \
