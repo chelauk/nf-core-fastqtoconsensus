@@ -44,13 +44,49 @@ On release, automated continuous integration tests run the pipeline on a full-si
 
 2. Install any of [`Docker`](https://docs.docker.com/engine/installation/), [`Singularity`](https://www.sylabs.io/guides/3.0/user-guide/) (you can follow [this tutorial](https://singularity-tutorial.github.io/01-installation/)), [`Podman`](https://podman.io/), [`Shifter`](https://nersc.gitlab.io/development/shifter/how-to-use/) or [`Charliecloud`](https://hpc.github.io/charliecloud/) for full pipeline reproducibility _(you can use [`Conda`](https://conda.io/miniconda.html) both to install Nextflow itself and also to manage software within pipelines. Please only use it within pipelines as a last resort; see [docs](https://nf-co.re/usage/configuration#basic-configuration-profiles))_.
 
-3. Download the pipeline and test it on a minimal dataset with a single command:
+3. Clone the pipeline
+
+3. Clone the pipeline:
+
+    ```console
+    git clone https://github.com/chelauk/nf-core-demultiplex-methylation.git
+    ```
+
+
+4. Edit your .bashrc file to set the following variables:
+
+   <pre><lang ="bash"><code>
+   # Set all the Singularity cache dirs to Scratch
+   export SINGULARITY_CACHEDIR=<b>/your/selected/scratch/folder/singularity_imgs</b>
+   export SINGULARITY_TMPDIR=$SINGULARITY_CACHEDIR/tmp
+   export SINGULARITY_LOCALCACHEDIR=$SINGULARITY_CACHEDIR/localcache
+   export SINGULARITY_PULLFOLDER=$SINGULARITY_CACHEDIR/pull
+   # match the NXF_SINGULARITY_CACHEDIR
+   export NXF_SINGULARITY_CACHEDIR=<b>/your/selected/scratch/folder/singularity_imgs</b>
+   </code></pre>
+
+5. Start running your own analysis
+   edit a sbatch script
+
+    <pre><lang ="bash"><code>
+    #!/bin/bash -l
+    #SBATCH --job-name=demultiplex
+    #SBATCH --output=nextflow_out.txt
+    #SBATCH --partition=master-worker
+    #SBATCH --ntasks=1
+    #SBATCH --time=120:00:00
+
+    nextflow run <b>/location/of/your/nextflow_pipelines/nf-core-demultiplex-methylation</b> \
+		--input input.csv  \
+		-profile slurm,singularity \
+		-resume
+    </code></pre>
+
+6. Start your sbatch job:
 
    ```console
-   nextflow run nf-core/fastqtoconsensus -profile test,YOURPROFILE --outdir <OUTDIR>
-   ```
-
-   Note that some form of configuration will be needed so that Nextflow knows how to fetch the required software. This is usually done in the form of a config profile (`YOURPROFILE` in the example command above). You can chain multiple config profiles in a comma-separated string.
+   sbatch runNextflow.sh
+   ````
 
    > - The pipeline comes with config profiles called `docker`, `singularity`, `podman`, `shifter`, `charliecloud` and `conda` which instruct the pipeline to use the named tool for software management. For example, `-profile test,docker`.
    > - Please check [nf-core/configs](https://github.com/nf-core/configs#documentation) to see if a custom config file to run nf-core pipelines already exists for your Institute. If so, you can simply use `-profile <institute>` in your command. This will enable either `docker` or `singularity` and set the appropriate execution settings for your local compute environment.
