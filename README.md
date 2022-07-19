@@ -76,10 +76,10 @@ On release, automated continuous integration tests run the pipeline on a full-si
     #SBATCH --ntasks=1
     #SBATCH --time=120:00:00
 
-    nextflow run <b>/location/of/your/nextflow_pipelines/nf-core-demultiplex-methylation</b> \\
-    --input input.csv \\
-    -profile slurm,singularity \\
-    -c local.config \\
+    nextflow run <b>/location/of/your/nextflow_pipelines/nf-core-demultiplex-methylation</b> \
+    --input input.csv \
+    -profile slurm,singularity \
+    -c local.config \
     -resume
     </code></pre>
 
