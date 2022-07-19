@@ -66,7 +66,7 @@ On release, automated continuous integration tests run the pipeline on a full-si
    </code></pre>
 
 5. Start running your own analysis
-   edit a sbatch script
+   edit a sbatch script <code>runNextflow.sh</code>
 
     <pre><lang ="bash"><code>
     #!/bin/bash -l
@@ -76,10 +76,11 @@ On release, automated continuous integration tests run the pipeline on a full-si
     #SBATCH --ntasks=1
     #SBATCH --time=120:00:00
 
-    nextflow run <b>/location/of/your/nextflow_pipelines/nf-core-demultiplex-methylation</b> \
-		--input input.csv  \
-		-profile slurm,singularity \
-		-resume
+    nextflow run <b>/location/of/your/nextflow_pipelines/nf-core-demultiplex-methylation</b> \\
+    --input input.csv \\
+    -profile slurm,singularity \\
+    -c local.config \\
+    -resume
     </code></pre>
 
 6. Start your sbatch job:
@@ -87,6 +88,45 @@ On release, automated continuous integration tests run the pipeline on a full-si
    ```console
    sbatch runNextflow.sh
    ````
+
+7. local.config
+
+    Adjust your local config file to match requirements.
+    parameters can be set for individual processes or processes can be grouped with labels
+
+    <pre><lang ="bash"><code>
+    process {
+      executor = 'slurm'
+      errorStrategy = {task.exitStatus in [143,137,104,134,139,255] ? 'retry' : 'finish'}
+      maxErrors = '-1'
+      maxRetries = 5<br>
+      withLabel:process_high {
+        memory = 64.GB
+        cpus   = 24
+        time   = 48.h
+      }
+      withLabel:process_low {
+        cpus   = 1
+        memory = 8.GB
+        time   = 2.h
+      }
+      withLabel:process_long {
+        memory = 16.GB
+        cpus = 1
+        time = 72.h
+      }
+      withLabel:process_medium {
+        memory = 16.GB
+        time = 8.h
+      }
+      withName:ALIGN {
+        cpus = 48
+        memory = 384.GB
+        time = 48.h
+      }
+    }
+</pre></code>
+
 
    > - The pipeline comes with config profiles called `docker`, `singularity`, `podman`, `shifter`, `charliecloud` and `conda` which instruct the pipeline to use the named tool for software management. For example, `-profile test,docker`.
    > - Please check [nf-core/configs](https://github.com/nf-core/configs#documentation) to see if a custom config file to run nf-core pipelines already exists for your Institute. If so, you can simply use `-profile <institute>` in your command. This will enable either `docker` or `singularity` and set the appropriate execution settings for your local compute environment.
